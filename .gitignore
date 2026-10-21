@@ -1,24 +1,9 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# 构建产物与本机缓存
+.build*/
+dist/
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+.swiftpm/
+*.dmg
+
+# 本机扫描数据、截图和开发过程记录，仅保留在本地
+docs/
