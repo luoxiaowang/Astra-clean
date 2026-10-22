@@ -98,14 +98,36 @@ public enum Catalog {
                 CleanupRoot(title: "应用日志", url: home.appendingPathComponent("Library/Logs"), installersOnly: false),
                 CleanupRoot(title: "下载的安装包", url: home.appendingPathComponent("Downloads"), installersOnly: true)]
     }
-    public static func relatedPaths(for app: ApplicationInfo) -> [URL] {
-        let id = app.bundleID
-        guard !id.isEmpty, !id.contains("/"), id != ".", id != ".." else { return [] }
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        return ["Library/Caches/\(id)", "Library/Logs/\(id)", "Library/Preferences/\(id).plist",
-                "Library/Saved Application State/\(id).savedState", "Library/Application Support/\(id)"].map {
-            home.appendingPathComponent($0)
-        }.filter { FileManager.default.fileExists(atPath: $0.path) }
+    public static func relatedPaths(for app: ApplicationInfo, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [URL] {
+        func validIdentifier(_ id: String) -> Bool {
+            !id.isEmpty && id != "." && id != ".." && !id.contains("/") && !id.contains("\\")
+        }
+        guard validIdentifier(app.bundleID) else { return [] }
+        var identifiers: Set<String> = [app.bundleID]
+        // Only identities declared by embedded app extensions belong to this app.
+        // Prefix matches and shared group-container names are not ownership evidence.
+        let plugins = app.url.appendingPathComponent("Contents/PlugIns")
+        if plugins.standardizedFileURL == plugins.resolvingSymlinksInPath(),
+           let children = try? FileManager.default.contentsOfDirectory(at: plugins, includingPropertiesForKeys: nil) {
+            for child in children where child.pathExtension == "appex" {
+                guard child.standardizedFileURL == child.resolvingSymlinksInPath() else { continue }
+                let plist = child.appendingPathComponent("Contents/Info.plist")
+                guard plist.standardizedFileURL == plist.resolvingSymlinksInPath(),
+                      let data = try? Data(contentsOf: plist),
+                      let info = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any],
+                      let id = info["CFBundleIdentifier"] as? String, validIdentifier(id) else { continue }
+                identifiers.insert(id)
+            }
+        }
+        return identifiers.sorted().flatMap { id in
+            ["Library/Caches/\(id)", "Library/Logs/\(id)", "Library/Preferences/\(id).plist",
+             "Library/Saved Application State/\(id).savedState", "Library/Application Support/\(id)",
+             "Library/Containers/\(id)", "Library/Application Scripts/\(id)"].map {
+                home.appendingPathComponent($0)
+            }
+        }.filter {
+            $0.standardizedFileURL == $0.resolvingSymlinksInPath() && FileManager.default.fileExists(atPath: $0.path)
+        }
     }
     public static func startupItems() -> [StartupItem] {
         let roots = [FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/LaunchAgents"), URL(fileURLWithPath: "/Library/LaunchAgents"), URL(fileURLWithPath: "/Library/LaunchDaemons")]

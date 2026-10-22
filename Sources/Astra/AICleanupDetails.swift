@@ -13,17 +13,19 @@ struct AICleanupDetails: View {
     private let background = Color(red: 0.10, green: 0.16, blue: 0.18)
     private var historyNames: Set<String> { Set(AICleanupCatalog.histories.map(\.title) + [AgentDataCatalog.cursorHistory]) }
     private var caches: [FileEntry] { model.report.entries.filter { !historyNames.contains($0.category) && $0.category != IdleToolCatalog.category && $0.category != AgentDataCatalog.versionsCategory } }
+    private var versions: [FileEntry] { model.report.entries.filter { $0.category == AgentDataCatalog.versionsCategory } }
+    private var cacheAndVersions: [FileEntry] { caches + versions }
     private var running: Set<String> { Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)) }
     private func available(_ entry: FileEntry) -> Bool { entry.complete && !AgentDataCatalog.versionIsProtected(entry) && !CleanupPresentation.isRunning(owner: entry.ownerBundleIdentifier, runningIDs: running) && !(entry.category == IdleToolCatalog.category && IdleToolCatalog.isCurrent(entry)) }
     private func bytes(_ entries: [FileEntry]) -> Int64 { entries.reduce(0) { $0 + $1.bytes } }
     private var tools: [FileEntry] { model.report.entries.filter { $0.category == IdleToolCatalog.category } }
-    private var blockedBytes: Int64 { bytes(caches.filter { !available($0) }) }
+    private var blockedBytes: Int64 { bytes(cacheAndVersions.filter { !available($0) }) }
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("AI 工具清理与维护").font(.system(size: 22, weight: .semibold))
-                    Text("可选缓存 \(sizeText(bytes(caches.filter(available)))) · 缓存和临时文件" + (blockedBytes > 0 ? " · \(sizeText(blockedBytes)) 正在使用或未完整读取" : ""))
+                    Text("可选缓存与旧版本 \(sizeText(bytes(cacheAndVersions.filter(available)))) · 缓存、临时文件和旧版本" + (blockedBytes > 0 ? " · \(sizeText(blockedBytes)) 正在使用或未完整读取" : ""))
                         .font(.system(size: 12)).foregroundStyle(.white.opacity(0.5))
                 }
                 Spacer()
@@ -32,10 +34,10 @@ struct AICleanupDetails: View {
             }.padding(.top, 28).padding(.bottom, 26)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 20) {
-                    section("缓存与旧版本", amount: bytes(caches), note: "缓存可重新生成；使用中的应用数据保留") {
+                    section("缓存与旧版本", amount: bytes(cacheAndVersions), note: "缓存可重新生成；使用中的应用数据保留") {
                         selectableRow("缓存和临时文件", subtitle: "Claude、ChatGPT、Codex、Cursor、OpenCode 的缓存，需要时自动重建", entries: caches)
                         Divider().overlay(.white.opacity(0.04)).padding(.leading, 44)
-                        selectableRow("Claude Code 安装版本", subtitle: "保留当前命令入口指向的版本；旧版本需手动选择", entries: model.report.entries.filter { $0.category == AgentDataCatalog.versionsCategory })
+                        selectableRow("Claude Code 安装版本", subtitle: "保留当前命令入口指向的版本；旧版本需手动选择", entries: versions)
                     }
                     section("对话与 worktree", amount: bytes(model.selectedEntries.filter { historyNames.contains($0.category) }), note: "选择保留天数，展开逐项确认后再清理") {
                         ForEach(AICleanupCatalog.histories.map(\.title) + [AgentDataCatalog.cursorHistory], id: \.self) { name in

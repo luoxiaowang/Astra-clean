@@ -50,6 +50,8 @@ let safety = FileSafetyTests()
 let service = ServiceTests()
 let presentation = PresentationDataTests()
 let tests: [(String, XCTestCase, () throws -> Void)] = [
+    ("实际磁盘占用与文件变化校验相互独立", service, service.testAllocatedSizeAndFingerprintRemainIndependent),
+    ("卸载关联容器、扩展归属与符号链接边界", service, service.testUninstallFindsOwnedContainersAndExtensions),
     ("其他 Agent 扫描范围及当前版本保护", safety, safety.testOtherAgentSourcesAndProtection),
     ("OpenCode 只读会话关联汇总", safety, safety.testOpenCodeReadOnlySessionSummary),
     ("区分权限不足与非权限扫描错误", presentation, presentation.testPermissionIssueClassification),

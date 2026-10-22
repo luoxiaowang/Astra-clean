@@ -182,7 +182,7 @@ final class SoftwareModel: ObservableObject {
         let list = apps
         Task {
             for app in list {
-                let size = await Task.detached(priority: .utility) { try? FileScanner.measure(url: app.url).bytes }.value
+                let size = await Task.detached(priority: .utility) { try? FileScanner.measure(url: app.url, metric: .allocated).bytes }.value
                 if let size { sizes[app.id] = size }
             }
             loading = false
@@ -198,7 +198,7 @@ final class SoftwareModel: ObservableObject {
                 for app in chosen {
                   for path in [app.url] + Catalog.relatedPaths(for: app) {
                     do {
-                        var entry = try FileScanner.measure(url: path)
+                        var entry = try FileScanner.measure(url: path, metric: .allocated)
                         entry.category = path == app.url ? "应用程序" : "关联数据（请核对）"
                         entry.ownerApplicationURL = app.url
                         entries.append(entry)

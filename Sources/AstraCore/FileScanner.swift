@@ -60,16 +60,19 @@ public enum AstraError: LocalizedError {
     public var errorDescription: String? { if case .message(let text) = self { return text }; return nil }
 }
 
+public enum FileSizeMetric: Sendable { case logical, allocated }
+
 public enum FileScanner {
     private final class Context {
         let token: ScanCancellation
+        let metric: FileSizeMetric
         let progress: (Int, String) -> Void
         var inodes = Set<String>()
         var issues: [ScanIssue] = []
         var largest: [FileEntry] = []
         var visited = 0
-        init(_ token: ScanCancellation, _ progress: @escaping (Int, String) -> Void) {
-            self.token = token; self.progress = progress
+        init(_ token: ScanCancellation, _ progress: @escaping (Int, String) -> Void, metric: FileSizeMetric = .logical) {
+            self.token = token; self.progress = progress; self.metric = metric
         }
     }
 
@@ -99,8 +102,8 @@ public enum FileScanner {
         return result
     }
 
-    public static func measure(url: URL, token: ScanCancellation = ScanCancellation()) throws -> FileEntry {
-        let context = Context(token, { _, _ in })
+    public static func measure(url: URL, token: ScanCancellation = ScanCancellation(), metric: FileSizeMetric = .logical) throws -> FileEntry {
+        let context = Context(token, { _, _ in }, metric: metric)
         guard let result = try walk(url.standardizedFileURL, depth: 0, context: context), result.complete,
               !token.isCancelled, context.issues.isEmpty else {
             throw AstraError.message("未能完整读取该项目，或项目是符号链接，请重新扫描。")
@@ -142,7 +145,7 @@ public enum FileScanner {
             }
         } else {
             let inode = "\(info.st_dev):\(info.st_ino)"
-            if context.inodes.insert(inode).inserted { bytes = Int64(info.st_size) }
+            if context.inodes.insert(inode).inserted { bytes = context.metric == .allocated ? Int64(info.st_blocks) * 512 : Int64(info.st_size) }
             count = 1
         }
         let item = FileEntry(url: url, bytes: bytes, fileCount: count, isDirectory: directory,
